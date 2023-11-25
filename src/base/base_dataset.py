@@ -7,7 +7,8 @@ import torch
 import torchaudio
 from torch import Tensor
 from torch.utils.data import Dataset
-from src.text import text_to_sequence
+from src.preprocessing.melspectrogram import MelSpectrogram, MelSpectrogramConfig
+
 from src.utils.parse_config import ConfigParser
 
 logger = logging.getLogger(__name__)
@@ -18,23 +19,18 @@ class BaseDataset(Dataset):
         self,
         index,
         config_parser: ConfigParser,
-        batch_expand_size: int = 32,
-        wave_augs=None,
-        spec_augs=None,
         limit=None,
         max_audio_length=None,
-        max_text_length=None,
     ):
         self.config_parser = config_parser
-        self.wave_augs = wave_augs
-        self.spec_augs = spec_augs
         self.log_spec = config_parser["preprocessing"]["log_spec"]
-        self.batch_expand_size = batch_expand_size
+        self.config_melspec = MelSpectrogramConfig(
+            **config_parser["preprocessing"]["spectrogram"]["args"]
+        )
+        self.wav2spec = MelSpectrogram(self.config_melspec)
 
         self._assert_index_is_valid(index)
-        index = self._filter_records_from_dataset(
-            index, max_audio_length, max_text_length, limit
-        )
+        index = self._filter_records_from_dataset(index, max_audio_length, limit)
         # it's a good idea to sort index by audio length
         # It would be easier to write length-based batch samplers later
         index = self._sort_index(index)
@@ -42,21 +38,13 @@ class BaseDataset(Dataset):
 
     def __getitem__(self, ind):
         data_dict = self._index[ind]
-        mel_spec = torch.from_numpy(np.load(data_dict["mel_path"]))
-        duration = torch.from_numpy(np.load(data_dict["aligment_path"]))
-        pitch = torch.from_numpy(np.load(data_dict["pitch_path"]))
-        energy = torch.from_numpy(np.load(data_dict["energy_path"]))
-        text = data_dict["text"].strip()
-        character = np.array(text_to_sequence(text, ["english_cleaners"]))
-        character = torch.from_numpy(character)
-
+        audio_path = data_dict["path"]
+        audio_wave = self.load_audio(audio_path)
+        audio_wave, audio_spec = self.process_wave(audio_wave)
         return {
-            "mel_target": mel_spec,
-            "duration": duration,
-            "text": character,
-            "pitch": pitch,
-            "energy": energy,
-            "batch_expand_size": self.batch_expand_size,
+            "audio": audio_wave,
+            "spectrogram": audio_spec,
+            "duration": audio_wave.size(1) / self.config_melspec.sr,
         }
 
     @staticmethod
@@ -69,30 +57,20 @@ class BaseDataset(Dataset):
     def load_audio(self, path):
         audio_tensor, sr = torchaudio.load(path)
         audio_tensor = audio_tensor[0:1, :]  # remove all channels but the first
-        target_sr = self.config_parser["preprocessing"]["sr"]
+        target_sr = self.config_melspec.sr
         if sr != target_sr:
             audio_tensor = torchaudio.functional.resample(audio_tensor, sr, target_sr)
         return audio_tensor
 
     def process_wave(self, audio_tensor_wave: Tensor):
         with torch.no_grad():
-            if self.wave_augs is not None:
-                audio_tensor_wave = self.wave_augs(audio_tensor_wave)
-            wave2spec = self.config_parser.init_obj(
-                self.config_parser["preprocessing"]["spectrogram"],
-                torchaudio.transforms,
-            )
-            audio_tensor_spec = wave2spec(audio_tensor_wave)
-            if self.spec_augs is not None:
-                audio_tensor_spec = self.spec_augs(audio_tensor_spec)
+            audio_tensor_spec = self.wav2spec(audio_tensor_wave)
             if self.log_spec:
                 audio_tensor_spec = torch.log(audio_tensor_spec + 1e-5)
             return audio_tensor_wave, audio_tensor_spec
 
     @staticmethod
-    def _filter_records_from_dataset(
-        index: list, max_audio_length, max_text_length, limit
-    ) -> list:
+    def _filter_records_from_dataset(index: list, max_audio_length, limit) -> list:
         initial_size = len(index)
         if max_audio_length is not None:
             exceeds_audio_length = (
@@ -125,7 +103,7 @@ class BaseDataset(Dataset):
     @staticmethod
     def _assert_index_is_valid(index):
         for entry in index:
-            assert "text" in entry, (
-                "Each dataset item should include field 'text'"
-                " - text transcription of the audio."
+            assert "path" in entry, (
+                "Each dataset item should include field 'audio_path'"
+                " - duration of audio (in seconds)."
             )

@@ -4,14 +4,12 @@ import warnings
 import os
 
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
-os.environ["TORCH_USE_CUDA_DSA"] = "1"
 warnings.filterwarnings("ignore")
 
 import numpy as np
 import torch
 
 import src.loss as module_loss
-import src.metric as module_metric
 import src.model as module_arch
 from src.trainer import Trainer
 from src.utils import prepare_device
@@ -30,8 +28,6 @@ np.random.seed(SEED)
 def main(config):
     logger = config.get_logger("train")
 
-    # text_encoder
-
     # setup data_loader instances
     dataloaders = get_dataloaders(config)
 
@@ -47,18 +43,13 @@ def main(config):
 
     # get function handles of loss and metrics
     loss_module = config.init_obj(config["loss"], module_loss).to(device)
-    """
-    metrics = [
-        config.init_obj(metric_dict, module_metric)
-        for metric_dict in config["metrics"]
-    ]"""
     metrics = []
 
     # build optimizer, learning rate scheduler. delete every line containing lr_scheduler for
     # disabling scheduler
     trainable_params = filter(lambda p: p.requires_grad, model.parameters())
-    optimizer = config.init_obj(config["optimizer"], module_arch, model)
-    #lr_scheduler = config.init_obj(config["lr_scheduler"], torch.optim.lr_scheduler, optimizer)
+    optimizer = config.init_obj(config["optimizer"], torch.optim, trainable_params)
+    lr_scheduler = config.init_obj(config["lr_scheduler"], torch.optim.lr_scheduler, optimizer)
 
     trainer = Trainer(
         model,
@@ -68,7 +59,7 @@ def main(config):
         config=config,
         device=device,
         dataloaders=dataloaders,
-        lr_scheduler=None,
+        lr_scheduler=lr_scheduler,
         len_epoch=config["trainer"].get("len_epoch", None)
     )
 

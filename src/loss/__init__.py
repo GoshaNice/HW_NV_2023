@@ -1,3 +1,3 @@
-from src.loss.FSLoss import FastSpeech2Loss
+from src.loss.hifigan_loss import HifiGanLoss
 
-__all__ = ["FastSpeech2Loss"]
+__all__ = ["HifiGanLoss"]

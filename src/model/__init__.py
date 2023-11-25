@@ -1,4 +1,3 @@
-from src.model.FastSpeech2 import FastSpeech2
-from src.model.optimizer import ScheduledOptim
+from src.model.hifigan import HifiGan
 
-__all__ = ["FastSpeech2", "ScheduledOptim"]
+__all__ = ["HifiGan"]

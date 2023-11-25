@@ -4,9 +4,12 @@ from torch import nn
 import torch.nn.functional as F
 
 
-class FastSpeech2Loss(nn.Module):
-    def __init__(self, *args, **kwargs):
+class HifiGanLoss(nn.Module):
+    def __init__(self, lambda_fm, lambda_mel, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        self.lambda_fm = lambda_fm
+        self.lambda_mel = lambda_mel
 
         self.mse_loss = nn.MSELoss()
         self.mae_loss = nn.L1Loss()

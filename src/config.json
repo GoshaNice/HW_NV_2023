@@ -1,62 +1,39 @@
 {
-  "name": "FastSpeech2+Hope",
+  "name": "HifiGan+Hope",
   "n_gpu": 1,
   "preprocessing": {
-      "sr": 22050,
       "spectrogram": {
-          "type": "MelSpectrogram",
           "args": {
-            "nfft": 1024,
-            "hop_size": 256
+            "sr": 22050,
+            "win_length": 1024,
+            "hop_length": 256,
+            "n_fft": 1024,
+            "f_min": 0,
+            "f_max": 8000,
+            "n_mels": 80,
+            "power": 1.0,
+            "pad_value": -11.5129251
           }
       },
       "log_spec": false
   },
-  "augmentations": {
-      "wave": [],
-      "spectrogram": []
-  },
   "arch": {
-      "type": "FastSpeech2",
+      "type": "HifiGan",
       "args": {
         "model_config": {
-            "vocab_size" : 1000,
-            "max_seq_len" : 3000,
-            "encoder_dim" : 256,
-            "encoder_n_layer" : 4,
-            "encoder_head" : 2,
-            "encoder_conv1d_filter_size" : 1024,
-            "decoder_dim" : 256,
-            "decoder_n_layer" : 4,
-            "decoder_head" : 2,
-            "decoder_conv1d_filter_size" : 1024,
-            "fft_conv1d_kernel" : [9, 1],
-            "fft_conv1d_padding" : [4, 0],
-            "duration_predictor_filter_size" : 256,
-            "duration_predictor_kernel_size" : 3,
-            "dropout" : 0.1,
-            "PAD" : 0,
-            "UNK" : 1,
-            "BOS" : 2,
-            "EOS" : 3,
-            "PAD_WORD" : "<blank>",
-            "UNK_WORD" : "<unk>",
-            "BOS_WORD" : "<s>",
-            "EOS_WORD" : "</s>",
-            "phoneme_embed_dim": 256,
-            "variance_adaptor": {
-                "input_channels": 256,
-                "output_channels": 256,
-                "kernel_size": 3,
-                "dropout": 0.1,
-                "n_bins": 256,
-                "encoder_hidden": 256,
-                "pitch_min": 60,
-                "pitch_max": 880,
-                "energy_min": 15,
-                "energy_max": 95
-            },
-            "num_mels": 80
+            "generator": {
+                "upsample_rates": [8,8,2,2],
+                "upsample_kernel_sizes": [16,16,4,4],
+                "resblock_kernel_sizes": [3,7,11],
+                "resblock_dilation_sizes": [[1,3,5], [1,3,5], [1,3,5]],
+                "initial_channels": 512,
+                "n_mels": 80,
+                "pre_kernel_size": 7,
+                "post_kernel_size": 7,
+                "neg_slope": 0.1
+            }
+
+
         }
       }
   },
@@ -68,10 +45,7 @@
               {
                   "type": "LJspeechDataset",
                   "args": {
-                      "part": "train",
-                      "max_audio_length": 20.0,
-                      "max_text_length": 200,
-                      "batch_expand_size": 48
+                      "part": "train"
                   }
               }
           ]
@@ -83,26 +57,26 @@
             {
                 "type": "LJspeechDataset",
                 "args": {
-                    "part": "test",
-                    "max_audio_length": 20.0,
-                    "max_text_length": 200,
-                    "limit": 640
+                    "part": "test"
                 }
             }
           ]
       }
   },
   "optimizer": {
-      "type": "ScheduledOptim",
+      "type": "AdamW",
       "args": {
-          "n_warmup_steps": 4000,
-          "betas": [0.9, 0.98],
-          "eps": 1e-9
+        "lr": 0.0002,
+        "betas": [0.8, 0.99],
+        "eps": 1e-9
       }
   },
   "loss": {
-      "type": "FastSpeech2Loss",
-      "args": {}
+      "type": "HifiGanLoss",
+      "args": {
+        "lambda_fm": 2,
+        "lambda_mel": 45
+      }
   },
   "metrics": [
       {}
