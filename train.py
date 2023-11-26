@@ -40,26 +40,33 @@ def main(config):
     model = model.to(device)
     if len(device_ids) > 1:
         model = torch.nn.DataParallel(model, device_ids=device_ids)
+    
+    metrics= []
 
-    # get function handles of loss and metrics
-    loss_module = config.init_obj(config["loss"], module_loss).to(device)
-    metrics = []
-
-    # build optimizer, learning rate scheduler. delete every line containing lr_scheduler for
-    # disabling scheduler
-    trainable_params = filter(lambda p: p.requires_grad, model.parameters())
-    optimizer = config.init_obj(config["optimizer"], torch.optim, trainable_params)
-    lr_scheduler = config.init_obj(config["lr_scheduler"], torch.optim.lr_scheduler, optimizer)
+    generator_loss = config.init_obj(config["generator_loss"], module_loss).to(device)
+    discriminator_loss = config.init_obj(config["discriminator_loss"], module_loss).to(device)
+    
+    generator_params = filter(lambda p: p.requires_grad, model.generator.parameters())
+    discriminator_params = filter(lambda p: p.requires_grad, model.discriminator.parameters())
+    
+    generator_optimizer = config.init_obj(config["generator_optimizer"], torch.optim, generator_params)
+    discriminator_optimizer = config.init_obj(config["discriminator_optimizer"], torch.optim, discriminator_params)
+    
+    generator_lr_scheduler = config.init_obj(config["generator_lr_scheduler"], torch.optim.lr_scheduler, generator_optimizer)
+    discriminator_lr_scheduler = config.init_obj(config["discriminator_lr_scheduler"], torch.optim.lr_scheduler, discriminator_optimizer)
 
     trainer = Trainer(
         model,
-        loss_module,
+        generator_loss,
+        discriminator_loss,
         metrics,
-        optimizer,
+        generator_optimizer,
+        discriminator_optimizer,
         config=config,
         device=device,
         dataloaders=dataloaders,
-        lr_scheduler=lr_scheduler,
+        generator_lr_scheduler=generator_lr_scheduler,
+        discriminator_lr_scheduler=discriminator_lr_scheduler,
         len_epoch=config["trainer"].get("len_epoch", None)
     )
 

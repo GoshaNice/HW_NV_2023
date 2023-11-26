@@ -16,13 +16,7 @@ def get_dataloaders(configs: ConfigParser):
         # create and join datasets
         datasets = []
         for ds in params["datasets"]:
-            datasets.append(
-                configs.init_obj(
-                    ds,
-                    src.datasets,
-                    config_parser=configs
-                )
-            )
+            datasets.append(configs.init_obj(ds, src.datasets, config_parser=configs))
         assert len(datasets)
         if len(datasets) > 1:
             dataset = ConcatDataset(datasets)

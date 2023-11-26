@@ -27,17 +27,29 @@ class Trainer(BaseTrainer):
     def __init__(
         self,
         model,
-        criterion,
+        generator_criterion,
+        discriminator_criterion,
         metrics,
-        optimizer,
+        generator_optimizer,
+        discriminator_optimizer,
         config,
         device,
         dataloaders,
-        lr_scheduler=None,
+        generator_lr_scheduler=None,
+        discriminator_lr_scheduler=None,
         len_epoch=None,
         skip_oom=True,
     ):
-        super().__init__(model, criterion, metrics, optimizer, config, device)
+        super().__init__(
+            model,
+            generator_criterion,
+            discriminator_criterion,
+            metrics,
+            generator_optimizer,
+            discriminator_optimizer,
+            config,
+            device,
+        )
         self.skip_oom = skip_oom
         self.config = config
         self.train_dataloader = dataloaders["train"]
@@ -51,7 +63,8 @@ class Trainer(BaseTrainer):
         self.evaluation_dataloaders = {
             k: v for k, v in dataloaders.items() if k != "train"
         }
-        self.lr_scheduler = lr_scheduler
+        self.generator_lr_scheduler = generator_lr_scheduler
+        self.discriminator_lr_scheduler = discriminator_lr_scheduler
         self.log_step = 50
 
         self.train_metrics = MetricTracker(
@@ -116,9 +129,8 @@ class Trainer(BaseTrainer):
                 self.writer.add_scalar(
                     "learning rate", self.lr_scheduler.get_last_lr()[0]
                 )
-                self._log_predictions(**batch)
                 self._log_spectrogram(batch["spectrogram"])
-                self._log_audio(batch["spectrogram"])
+                self._log_audio(batch["prediction"])
                 self._log_scalars(self.train_metrics)
                 # we don't want to reset train metrics at the start of every epoch
                 # because we are interested in recent train metrics
@@ -136,23 +148,36 @@ class Trainer(BaseTrainer):
 
     def process_batch(self, batch, is_train: bool, metrics: MetricTracker):
         batch = self.move_batch_to_device(batch, self.device)
-        if is_train:
-            self.optimizer.zero_grad()
         outputs = self.model(**batch)
-        if type(outputs) is dict:
-            batch.update(outputs)
+        batch.update(outputs)
 
-        batch["loss"] = self.criterion(**batch)
+        outputs = self.model.discriminate(**batch)
+        batch.update(outputs)
+
         if is_train:
-            batch["loss"].backward()
-            self._clip_grad_norm()
-            self.optimizer.step()
-            if self.lr_scheduler is not None:
-                self.lr_scheduler.step()
+            self.discriminator_optimizer.zero_grad()
+            batch["discriminator_loss"] = self.discriminator_criterion(**batch)
+            batch["discriminator_loss"].backward()
+            self.discriminator_optimizer.step()
 
-        metrics.update("loss", batch["loss"].item())
-        for met in self.metrics:
-            metrics.update(met.name, met(**batch))
+            self.generator_optimizer.zero_grad()
+            outputs = self.model.discriminate(**batch)
+            batch.update(outputs)
+            (
+                generator_loss,
+                adversarial_loss,
+                mel_loss,
+                fm_loss,
+            ) = self.generator_criterion(**batch)
+            generator_loss.backward()
+            batch["loss"] = generator_loss
+            batch["adversarial_loss"] = adversarial_loss
+            batch["mel_loss"] = mel_loss
+            batch["fm_loss"] = fm_loss
+            metrics.update("loss", batch["loss"].item())
+            for met in self.metrics:
+                metrics.update(met.name, met(**batch))
+
         return batch
 
     def _evaluation_epoch(self, epoch, part, dataloader):

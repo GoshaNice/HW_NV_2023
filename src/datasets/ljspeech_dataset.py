@@ -15,9 +15,7 @@ import torch
 
 logger = logging.getLogger(__name__)
 
-URL_LINKS = {
-    "dataset": "https://data.keithito.com/data/speech/LJSpeech-1.1.tar.bz2"
-}
+URL_LINKS = {"dataset": "https://data.keithito.com/data/speech/LJSpeech-1.1.tar.bz2"}
 
 
 class LJspeechDataset(BaseDataset):

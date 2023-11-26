@@ -64,6 +64,7 @@ class ResBlock(nn.Module):
         x = x + self.block1(x)
         x = x + self.block2(x)
         x = x + self.block3(x)
+        return x
 
 
 class MRF(nn.Module):
@@ -76,7 +77,7 @@ class MRF(nn.Module):
             self.blocks.append(
                 ResBlock(
                     channels=channels,
-                    kernel=kernel,
+                    kernel=kernel[i],
                     dilations=dilations[i],
                     neg_slope=neg_slope,
                 )
@@ -146,4 +147,4 @@ class Generator(nn.Module):
         for block in self.upsample_blocks:
             x = block(x)
         x = self.post(x)
-        return x
+        return {"prediction": x}

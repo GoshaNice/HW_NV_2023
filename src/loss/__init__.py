@@ -1,3 +1,3 @@
-from src.loss.hifigan_loss import HifiGanLoss
+from src.loss.hifigan_loss import GeneratorLoss, DiscriminatorLoss
 
-__all__ = ["HifiGanLoss"]
+__all__ = ["GeneratorLoss", "DiscriminatorLoss"]

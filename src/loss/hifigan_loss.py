@@ -2,39 +2,55 @@ import torch
 from torch import Tensor
 from torch import nn
 import torch.nn.functional as F
+from src.preprocessing.melspectrogram import MelSpectrogram, MelSpectrogramConfig
 
 
-class HifiGanLoss(nn.Module):
+class GeneratorLoss(nn.Module):
     def __init__(self, lambda_fm, lambda_mel, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.lambda_fm = lambda_fm
         self.lambda_mel = lambda_mel
+        self.wav2spec = MelSpectrogram(MelSpectrogramConfig())
+        self.mae = nn.L1Loss()
 
-        self.mse_loss = nn.MSELoss()
-        self.mae_loss = nn.L1Loss()
+    def forward(self, spectrogram, prediction, mpd, msd, **batch):
+        prediction = prediction.squeeze(1)
+        prediction_spectrogram = self.wav2spec(prediction)
+        prediction_spectrogram = F.pad(
+            prediction_spectrogram,
+            (0, int(spectrogram.shape[-1] - prediction_spectrogram.shape[-1])),
+            "constant",
+            0,
+        )
+        mel_loss = self.mae(prediction_spectrogram, spectrogram)
+        fm_loss = 0
+        for gen, real in zip(mpd["gen_fmaps"], mpd["real_fmaps"]):
+            fm_loss += self.mae(gen, real)
+        for gen, real in zip(msd["gen_fmaps"], msd["real_fmaps"]):
+            fm_loss += self.mae(gen, real)
 
-    def forward(
-        self,
-        mel_predictions,
-        log_pitch_predictions,
-        log_energy_predictions,
-        log_duration_predictions,
-        mel_target,
-        pitch_target,
-        energy_target,
-        duration_target,
-        **kwargs,
-    ):
-        mel_loss = self.mae_loss(mel_predictions, mel_target)
-        log_duration_targets = torch.log(duration_target.float() + 1)
-        log_pitch_targets = torch.log(pitch_target.float() + 1)
-        log_energy_targets = torch.log(energy_target + 1)
+        adversarial_loss = 0
+        for prob in mpd["gen_outputs"]:
+            adversarial_loss += torch.mean((prob - 1) ** 2)
+        for prob in msd["gen_outputs"]:
+            adversarial_loss += torch.mean((prob - 1) ** 2)
 
-        pitch_loss = self.mse_loss(log_pitch_predictions, log_pitch_targets)
-        energy_loss = self.mse_loss(log_energy_predictions, log_energy_targets)
-        duration_loss = self.mse_loss(log_duration_predictions, log_duration_targets)
+        generator_loss = (
+            adversarial_loss + self.lambda_mel * mel_loss + self.lambda_fm * fm_loss
+        )
+        return generator_loss, adversarial_loss, mel_loss, fm_loss
 
-        total_loss = mel_loss + duration_loss + pitch_loss + energy_loss
 
-        return total_loss, mel_loss, pitch_loss, energy_loss, duration_loss
+class DiscriminatorLoss(nn.Module):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def forward(self, mpd, msd, **batch):
+        discriminator_loss = 0
+        for gen, real in zip(mpd["gen_outputs"], mpd["real_outputs"]):
+            discriminator_loss += torch.mean((real - 1) ** 2) + torch.mean(gen**2)
+        for gen, real in zip(msd["gen_outputs"], msd["real_outputs"]):
+            discriminator_loss += torch.mean((real - 1) ** 2) + torch.mean(gen**2)
+
+        return discriminator_loss
