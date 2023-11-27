@@ -1,7 +1,7 @@
 [tool.poetry]
-name = "tts-project-hw3"
+name = "nv-project-hw3"
 version = "0.1.0"
-description = "TTS Project HW3"
+description = "NV Project HW3"
 authors = ["Gosha <gkpistsov@edu.hse.ru>"]
 readme = "README.md"
 packages = [{include = "src"}]

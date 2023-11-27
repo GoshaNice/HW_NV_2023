@@ -1,7 +1,7 @@
 [tool.poetry]
-name = "ss-project-hw1"
+name = "nv-project-hw1"
 version = "0.1.0"
-description = "SS Project HW1"
+description = "NV Project HW1"
 authors = ["Gosha <gkpistsov@edu.hse.ru>"]
 readme = "README.md"
 packages = [{include = "src"}]
