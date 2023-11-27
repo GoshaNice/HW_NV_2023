@@ -67,11 +67,20 @@ class Trainer(BaseTrainer):
         self.discriminator_lr_scheduler = discriminator_lr_scheduler
         self.log_step = 50
 
+        test_melspec = np.load("test_data_folder/mel_1.npy")
+        self.test_melspec = torch.from_numpy(test_melspec)
+
         self.train_metrics = MetricTracker(
-            "loss", "grad norm", *[m.name for m in self.metrics], writer=self.writer
+            "loss",
+            "adversarial_loss",
+            "mel_loss",
+            "fm_loss",
+            "grad norm",
+            *[m.name for m in self.metrics],
+            writer=self.writer,
         )
         self.evaluation_metrics = MetricTracker(
-            "loss", *[m.name for m in self.metrics], writer=self.writer
+            *[m.name for m in self.metrics], writer=self.writer
         )
 
     @staticmethod
@@ -127,7 +136,12 @@ class Trainer(BaseTrainer):
                     )
                 )
                 self.writer.add_scalar(
-                    "learning rate", self.lr_scheduler.get_last_lr()[0]
+                    "generator learning rate",
+                    self.generator_lr_scheduler.get_last_lr()[0],
+                )
+                self.writer.add_scalar(
+                    "discriminator learning rate",
+                    self.discriminator_lr_scheduler.get_last_lr()[0],
                 )
                 self._log_spectrogram(batch["spectrogram"])
                 self._log_audio(batch["prediction"])
@@ -151,7 +165,9 @@ class Trainer(BaseTrainer):
         outputs = self.model(**batch)
         batch.update(outputs)
 
-        outputs = self.model.discriminate(**batch)
+        outputs = self.model.discriminate(
+            prediction=batch["prediction"].detach(), audio=batch["audio"]
+        )
         batch.update(outputs)
 
         if is_train:
@@ -204,6 +220,7 @@ class Trainer(BaseTrainer):
             self._log_scalars(self.evaluation_metrics)
             self._log_spectrogram(batch["spectrogram"])
             self._log_audio(batch["prediction"])
+            self._log_test_audio()
 
         # add histogram of model parameters to the tensorboard
         for name, p in self.model.named_parameters():
@@ -226,8 +243,14 @@ class Trainer(BaseTrainer):
         self.writer.add_image("spectrogram", ToTensor()(image))
 
     def _log_audio(self, audio_batch):
-        audio = random.choice(audio_batch.cpu())
+        audio = random.choice(audio_batch.cpu().detach())
         self.writer.add_audio("audio", audio, sample_rate=22050)
+
+    def _log_test_audio(self):
+        self.model.eval()
+        output = self.model(self.test_melspec)
+        audio = output["prediction"][0].cpu().detach()
+        self.writer.add_audio("test_audio", audio, sample_rate=22050)
 
     @torch.no_grad()
     def get_grad_norm(self, norm_type=2):
