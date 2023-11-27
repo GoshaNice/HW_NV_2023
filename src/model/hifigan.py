@@ -12,10 +12,28 @@ class HifiGan(nn.Module):
         self.discriminator = Discriminator()
 
     def forward(self, spectrogram, **batch):
-        output = self.generator(spectrogram)
-        return output
+        prediction = self.generator(spectrogram)
+        return {"prediction": prediction}
 
     def discriminate(self, prediction, audio, **batch):
         audio = audio.unsqueeze(1)
-        discriminator_output = self.discriminator(prediction, audio)
-        return discriminator_output
+        (
+            mpd_real_outputs,
+            mpd_gen_outputs,
+            mpd_real_fmaps,
+            mpd_gen_fmaps,
+            msd_real_outputs,
+            msd_gen_outputs,
+            msd_real_fmaps,
+            msd_gen_fmaps,
+        ) = self.discriminator(prediction, audio)
+        return {
+            "mpd_real_outputs": mpd_real_outputs,
+            "mpd_gen_outputs": mpd_gen_outputs,
+            "mpd_real_fmaps": mpd_real_fmaps,
+            "mpd_gen_fmaps": mpd_gen_fmaps,
+            "msd_real_outputs": msd_real_outputs,
+            "msd_gen_outputs": msd_gen_outputs,
+            "msd_real_fmaps": msd_real_fmaps,
+            "msd_gen_fmaps": msd_gen_fmaps,
+        }

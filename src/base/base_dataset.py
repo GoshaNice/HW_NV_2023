@@ -20,6 +20,7 @@ class BaseDataset(Dataset):
         index,
         config_parser: ConfigParser,
         limit=None,
+        segment_size=None,
         max_audio_length=None,
     ):
         self.config_parser = config_parser
@@ -31,6 +32,7 @@ class BaseDataset(Dataset):
 
         self._assert_index_is_valid(index)
         index = self._filter_records_from_dataset(index, max_audio_length, limit)
+        self.segment_size = segment_size
         # it's a good idea to sort index by audio length
         # It would be easier to write length-based batch samplers later
         index = self._sort_index(index)
@@ -40,6 +42,9 @@ class BaseDataset(Dataset):
         data_dict = self._index[ind]
         audio_path = data_dict["path"]
         audio_wave = self.load_audio(audio_path)
+        if self.segment_size is not None and audio_wave.shape[-1] > self.segment_size:
+            start = np.random.randint(0, audio_wave.shape[-1] - self.segment_size + 1)
+            audio_wave = audio_wave[:, start:start+self.segment_size]
         audio_wave, audio_spec = self.process_wave(audio_wave)
         return {
             "audio": audio_wave,

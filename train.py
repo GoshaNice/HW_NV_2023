@@ -4,7 +4,7 @@ import warnings
 import os
 
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
-warnings.filterwarnings("ignore")
+#warnings.filterwarnings("ignore")
 
 import numpy as np
 import torch
@@ -46,8 +46,8 @@ def main(config):
     generator_loss = config.init_obj(config["generator_loss"], module_loss).to(device)
     discriminator_loss = config.init_obj(config["discriminator_loss"], module_loss).to(device)
     
-    generator_params = filter(lambda p: p.requires_grad, model.generator.parameters())
-    discriminator_params = filter(lambda p: p.requires_grad, model.discriminator.parameters())
+    generator_params = model.generator.parameters()
+    discriminator_params = model.discriminator.parameters()
     
     generator_optimizer = config.init_obj(config["generator_optimizer"], torch.optim, generator_params)
     discriminator_optimizer = config.init_obj(config["discriminator_optimizer"], torch.optim, discriminator_params)

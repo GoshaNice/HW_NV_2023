@@ -47,7 +47,7 @@ class LJspeechDataset(BaseDataset):
                 shutil.copy(str(fpath), str(self._data_dir / "train" / fpath.name))
             else:
                 shutil.copy(str(fpath), str(self._data_dir / "test" / fpath.name))
-        shutil.rmtree(str(self._data_dir / "wavs"))
+        # shutil.rmtree(str(self._data_dir / "wavs"))
 
     def _get_or_load_index(self, part):
         index_path = self._data_dir / f"{part}_index.json"

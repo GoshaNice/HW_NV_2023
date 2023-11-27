@@ -5,70 +5,37 @@ import numpy as np
 class ResBlock(nn.Module):
     def __init__(self, channels, kernel, dilations, neg_slope=0.1):
         super(ResBlock, self).__init__()
-        self.block1 = nn.Sequential(
-            nn.LeakyReLU(negative_slope=neg_slope),
-            nn.Conv1d(
-                in_channels=channels,
-                out_channels=channels,
-                kernel_size=kernel,
-                padding="same",
-                dilation=dilations[0],
-            ),
-            nn.LeakyReLU(negative_slope=neg_slope),
-            nn.Conv1d(
-                in_channels=channels,
-                out_channels=channels,
-                kernel_size=kernel,
-                padding="same",
-                dilation=1,
-            ),
-        )
-        self.block2 = nn.Sequential(
-            nn.LeakyReLU(negative_slope=neg_slope),
-            nn.Conv1d(
-                in_channels=channels,
-                out_channels=channels,
-                kernel_size=kernel,
-                padding="same",
-                dilation=dilations[1],
-            ),
-            nn.LeakyReLU(neg_slope),
-            nn.Conv1d(
-                in_channels=channels,
-                out_channels=channels,
-                kernel_size=kernel,
-                padding="same",
-                dilation=1,
-            ),
-        )
-        self.block3 = nn.Sequential(
-            nn.LeakyReLU(neg_slope),
-            nn.Conv1d(
-                in_channels=channels,
-                out_channels=channels,
-                kernel_size=kernel,
-                padding="same",
-                dilation=dilations[2],
-            ),
-            nn.LeakyReLU(neg_slope),
-            nn.Conv1d(
-                in_channels=channels,
-                out_channels=channels,
-                kernel_size=kernel,
-                padding="same",
-                dilation=1,
-            ),
-        )
+        self.blocks = nn.ModuleList()
+        for i in range(len(dilations)):
+            block = nn.Sequential(
+                nn.LeakyReLU(negative_slope=neg_slope),
+                nn.Conv1d(
+                    in_channels=channels,
+                    out_channels=channels,
+                    kernel_size=kernel,
+                    padding="same",
+                    dilation=dilations[i],
+                ),
+                nn.LeakyReLU(negative_slope=neg_slope),
+                nn.Conv1d(
+                    in_channels=channels,
+                    out_channels=channels,
+                    kernel_size=kernel,
+                    padding="same",
+                    dilation=1,
+                ),
+            )
+            self.blocks.append(block)
 
     def forward(self, x):
-        x = x + self.block1(x)
-        x = x + self.block2(x)
-        x = x + self.block3(x)
-        return x
+        output = 0
+        for block in self.blocks:
+            output = output + block(x)
+        return output
 
 
 class MRF(nn.Module):
-    def __init__(self, channels, kernel, dilations, neg_slope=0.1):
+    def __init__(self, channels, kernels, dilations, neg_slope=0.1):
         super(MRF, self).__init__()
         num_blocks = len(dilations)
         self.num_blocks = num_blocks
@@ -77,7 +44,7 @@ class MRF(nn.Module):
             self.blocks.append(
                 ResBlock(
                     channels=channels,
-                    kernel=kernel[i],
+                    kernel=kernels[i],
                     dilations=dilations[i],
                     neg_slope=neg_slope,
                 )
@@ -120,12 +87,12 @@ class Generator(nn.Module):
                     in_channels=initial_channels // np.power(2, i),
                     out_channels=initial_channels // np.power(2, i + 1),
                     kernel_size=upsample_kernel_sizes[i],
-                    stride=upsample_kernel_sizes[i] // 2,
+                    stride=upsample_rates[i],
                     padding=(upsample_kernel_sizes[i] - upsample_rates[i]) // 2,
                 ),
                 MRF(
                     channels=initial_channels // np.power(2, i + 1),
-                    kernel=resblock_kernel_sizes,
+                    kernels=resblock_kernel_sizes,
                     dilations=resblock_dilation_sizes,
                 ),
             )
@@ -147,4 +114,4 @@ class Generator(nn.Module):
         for block in self.upsample_blocks:
             x = block(x)
         x = self.post(x)
-        return {"prediction": x}
+        return x

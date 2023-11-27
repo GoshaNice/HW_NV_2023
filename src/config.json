@@ -43,7 +43,8 @@
               {
                   "type": "LJspeechDataset",
                   "args": {
-                      "part": "train"
+                      "part": "train",
+                      "segment_size": 8192
                   }
               }
           ]
@@ -55,7 +56,8 @@
             {
                 "type": "LJspeechDataset",
                 "args": {
-                    "part": "test"
+                    "part": "test",
+                    "limit": 50
                 }
             }
           ]
@@ -113,7 +115,7 @@
       "monitor": "min train_loss",
       "early_stop": 3000,
       "visualize": "wandb",
-      "wandb_project": "tts_project",
+      "wandb_project": "nv_project",
       "len_epoch": 500,
       "grad_norm_clip": 100
   }

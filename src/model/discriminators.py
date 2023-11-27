@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.nn.utils import weight_norm
 
 
 class PeriodDiscriminator(nn.Module):
@@ -9,49 +10,61 @@ class PeriodDiscriminator(nn.Module):
         self.period = period
         self.model = nn.ModuleList(
             [
-                nn.Conv2d(
-                    in_channels=1,
-                    out_channels=32,
-                    kernel_size=(kernel_size, 1),
-                    stride=(stride, 1),
-                    padding=((kernel_size - 1) // 2, 0),
+                weight_norm(
+                    nn.Conv2d(
+                        in_channels=1,
+                        out_channels=32,
+                        kernel_size=(kernel_size, 1),
+                        stride=(stride, 1),
+                        padding=((kernel_size - 1) // 2, 0),
+                    )
                 ),
-                nn.Conv2d(
-                    in_channels=32,
-                    out_channels=128,
-                    kernel_size=(kernel_size, 1),
-                    stride=(stride, 1),
-                    padding=((kernel_size - 1) // 2, 0),
+                weight_norm(
+                    nn.Conv2d(
+                        in_channels=32,
+                        out_channels=128,
+                        kernel_size=(kernel_size, 1),
+                        stride=(stride, 1),
+                        padding=((kernel_size - 1) // 2, 0),
+                    )
                 ),
-                nn.Conv2d(
-                    in_channels=128,
-                    out_channels=512,
-                    kernel_size=(kernel_size, 1),
-                    stride=(stride, 1),
-                    padding=((kernel_size - 1) // 2, 0),
+                weight_norm(
+                    nn.Conv2d(
+                        in_channels=128,
+                        out_channels=512,
+                        kernel_size=(kernel_size, 1),
+                        stride=(stride, 1),
+                        padding=((kernel_size - 1) // 2, 0),
+                    )
                 ),
-                nn.Conv2d(
-                    in_channels=512,
-                    out_channels=1024,
-                    kernel_size=(kernel_size, 1),
-                    stride=(stride, 1),
-                    padding=((kernel_size - 1) // 2, 0),
+                weight_norm(
+                    nn.Conv2d(
+                        in_channels=512,
+                        out_channels=1024,
+                        kernel_size=(kernel_size, 1),
+                        stride=(stride, 1),
+                        padding=((kernel_size - 1) // 2, 0),
+                    )
                 ),
-                nn.Conv2d(
-                    in_channels=1024,
-                    out_channels=1024,
-                    kernel_size=(kernel_size, 1),
-                    stride=1,
-                    padding=((kernel_size - 1) // 2, 0),
+                weight_norm(
+                    nn.Conv2d(
+                        in_channels=1024,
+                        out_channels=1024,
+                        kernel_size=(kernel_size, 1),
+                        stride=1,
+                        padding=((kernel_size - 1) // 2, 0),
+                    )
                 ),
             ]
         )
-        self.post = nn.Conv2d(
-            in_channels=1024,
-            out_channels=1024,
-            kernel_size=(3, 1),
-            stride=1,
-            padding=(1, 0),
+        self.post = weight_norm(
+            nn.Conv2d(
+                in_channels=1024,
+                out_channels=1024,
+                kernel_size=(3, 1),
+                stride=1,
+                padding=(1, 0),
+            )
         )
         self.leakyrelu = nn.LeakyReLU(neg_slope)
 
@@ -83,11 +96,11 @@ class MultiPeriodDiscriminator(torch.nn.Module):
         super(MultiPeriodDiscriminator, self).__init__()
         self.discriminators = nn.ModuleList(
             [
-                PeriodDiscriminator(2),
-                PeriodDiscriminator(3),
-                PeriodDiscriminator(5),
-                PeriodDiscriminator(7),
-                PeriodDiscriminator(11),
+                PeriodDiscriminator(period=2),
+                PeriodDiscriminator(period=3),
+                PeriodDiscriminator(period=5),
+                PeriodDiscriminator(period=7),
+                PeriodDiscriminator(period=11),
             ]
         )
 
@@ -108,13 +121,14 @@ class MultiPeriodDiscriminator(torch.nn.Module):
 
 
 class ScaleDiscriminator(nn.Module):
-    def __init__(self, neg_slope=0.1):
+    def __init__(self, norm=False, neg_slope=0.1):
         super(ScaleDiscriminator, self).__init__()
-        self.model = nn.ModuleList(
+        blocks = nn.ModuleList(
             [
                 nn.Conv1d(
                     in_channels=1,
                     out_channels=128,
+                    stride=1,
                     kernel_size=15,
                     padding="same",
                 ),
@@ -162,17 +176,24 @@ class ScaleDiscriminator(nn.Module):
                     in_channels=1024,
                     out_channels=1024,
                     kernel_size=5,
+                    stride=1,
                     padding=2,
                 ),
             ]
         )
-        self.post = nn.Conv1d(
+        post = nn.Conv1d(
             in_channels=1024,
             out_channels=1,
             kernel_size=3,
             stride=1,
             padding=1,
         )
+        if norm:
+            blocks = [weight_norm(block) for block in blocks]
+            post = weight_norm(post)
+
+        self.model = nn.ModuleList(blocks)
+        self.post = post
         self.leakyrelu = nn.LeakyReLU(neg_slope)
 
     def forward(self, x):
@@ -194,7 +215,7 @@ class MultiScaleDiscriminator(nn.Module):
         super(MultiScaleDiscriminator, self).__init__()
         self.discriminators = nn.ModuleList(
             [
-                ScaleDiscriminator(),
+                ScaleDiscriminator(norm=True),
                 ScaleDiscriminator(),
                 ScaleDiscriminator(),
             ]
@@ -237,17 +258,13 @@ class Discriminator(nn.Module):
         msd_real_outputs, msd_gen_outputs, msd_real_fmaps, msd_gen_fmaps = self.msd(
             generated, real
         )
-        return {
-            "mpd": {
-                "real_outputs": mpd_real_outputs,
-                "gen_outputs": mpd_gen_outputs,
-                "real_fmaps": mpd_real_fmaps,
-                "gen_fmaps": mpd_gen_fmaps,
-            },
-            "msd": {
-                "real_outputs": msd_real_outputs,
-                "gen_outputs": msd_gen_outputs,
-                "real_fmaps": msd_real_fmaps,
-                "gen_fmaps": msd_gen_fmaps,
-            },
-        }
+        return (
+            mpd_real_outputs,
+            mpd_gen_outputs,
+            mpd_real_fmaps,
+            mpd_gen_fmaps,
+            msd_real_outputs,
+            msd_gen_outputs,
+            msd_real_fmaps,
+            msd_gen_fmaps,
+        )

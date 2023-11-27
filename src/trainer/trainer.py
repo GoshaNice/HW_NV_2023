@@ -17,6 +17,7 @@ from src.logger.utils import plot_spectrogram_to_buf
 from src.utils import inf_loop, MetricTracker
 
 import numpy as np
+import time
 
 
 class Trainer(BaseTrainer):
@@ -68,9 +69,10 @@ class Trainer(BaseTrainer):
         self.log_step = 50
 
         test_melspec = np.load("test_data_folder/mel_1.npy")
-        self.test_melspec = torch.from_numpy(test_melspec)
+        self.test_melspec = torch.from_numpy(test_melspec).to(device)
 
         self.train_metrics = MetricTracker(
+            "discriminator_loss",
             "loss",
             "adversarial_loss",
             "mel_loss",
@@ -153,6 +155,10 @@ class Trainer(BaseTrainer):
             if batch_idx >= self.len_epoch:
                 break
         log = last_train_metrics
+        if self.generator_lr_scheduler is not None:
+            self.generator_lr_scheduler.step()
+        if self.discriminator_lr_scheduler is not None:
+            self.discriminator_lr_scheduler.step()
 
         for part, dataloader in self.evaluation_dataloaders.items():
             val_log = self._evaluation_epoch(epoch, part, dataloader)
@@ -172,8 +178,8 @@ class Trainer(BaseTrainer):
 
         if is_train:
             self.discriminator_optimizer.zero_grad()
-            batch["discriminator_loss"] = self.discriminator_criterion(**batch)
-            batch["discriminator_loss"].backward()
+            discriminator_loss = self.discriminator_criterion(**batch)
+            discriminator_loss.backward()
             self.discriminator_optimizer.step()
 
             self.generator_optimizer.zero_grad()
@@ -186,11 +192,14 @@ class Trainer(BaseTrainer):
                 fm_loss,
             ) = self.generator_criterion(**batch)
             generator_loss.backward()
+            self.generator_optimizer.step()
             batch["loss"] = generator_loss
-            batch["adversarial_loss"] = adversarial_loss
-            batch["mel_loss"] = mel_loss
-            batch["fm_loss"] = fm_loss
+
             metrics.update("loss", batch["loss"].item())
+            metrics.update("discriminator_loss", discriminator_loss.item())
+            metrics.update("adversarial_loss", adversarial_loss.item())
+            metrics.update("mel_loss", mel_loss.item())
+            metrics.update("fm_loss", fm_loss.item())
             for met in self.metrics:
                 metrics.update(met.name, met(**batch))
 
