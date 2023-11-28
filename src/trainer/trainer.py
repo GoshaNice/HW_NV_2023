@@ -73,11 +73,12 @@ class Trainer(BaseTrainer):
 
         self.train_metrics = MetricTracker(
             "discriminator_loss",
-            "loss",
+            "generator_loss",
             "adversarial_loss",
             "mel_loss",
             "fm_loss",
-            "grad norm",
+            "generator grad norm",
+            "discriminator grad norm",
             *[m.name for m in self.metrics],
             writer=self.writer,
         )
@@ -129,12 +130,20 @@ class Trainer(BaseTrainer):
                     continue
                 else:
                     raise e
-            self.train_metrics.update("grad norm", self.get_grad_norm())
+            self.train_metrics.update(
+                "generator grad norm", self.get_grad_norm_generator()
+            )
+            self.train_metrics.update(
+                "discriminator grad norm", self.get_grad_norm_discriminator()
+            )
             if batch_idx % self.log_step == 0:
                 self.writer.set_step((epoch - 1) * self.len_epoch + batch_idx)
                 self.logger.debug(
-                    "Train Epoch: {} {} Loss: {:.6f}".format(
-                        epoch, self._progress(batch_idx), batch["loss"].item()
+                    "Train Epoch: {} {} Generator Loss: {:.6f}, Discriminator Loss: {:.6f}".format(
+                        epoch,
+                        self._progress(batch_idx),
+                        batch["generator_loss"].item(),
+                        batch["discriminator_loss"].item(),
                     )
                 )
                 self.writer.add_scalar(
@@ -193,9 +202,10 @@ class Trainer(BaseTrainer):
             ) = self.generator_criterion(**batch)
             generator_loss.backward()
             self.generator_optimizer.step()
-            batch["loss"] = generator_loss
+            batch["generator_loss"] = generator_loss
+            batch["discriminator_loss"] = discriminator_loss
 
-            metrics.update("loss", batch["loss"].item())
+            metrics.update("generator_loss", generator_loss.item())
             metrics.update("discriminator_loss", discriminator_loss.item())
             metrics.update("adversarial_loss", adversarial_loss.item())
             metrics.update("mel_loss", mel_loss.item())
@@ -262,8 +272,22 @@ class Trainer(BaseTrainer):
         self.writer.add_audio("test_audio", audio, sample_rate=22050)
 
     @torch.no_grad()
-    def get_grad_norm(self, norm_type=2):
-        parameters = self.model.parameters()
+    def get_grad_norm_generator(self, norm_type=2):
+        parameters = self.model.generator.parameters()
+        if isinstance(parameters, torch.Tensor):
+            parameters = [parameters]
+        parameters = [p for p in parameters if p.grad is not None]
+        total_norm = torch.norm(
+            torch.stack(
+                [torch.norm(p.grad.detach(), norm_type).cpu() for p in parameters]
+            ),
+            norm_type,
+        )
+        return total_norm.item()
+
+    @torch.no_grad()
+    def get_grad_norm_discriminator(self, norm_type=2):
+        parameters = self.model.discriminator.parameters()
         if isinstance(parameters, torch.Tensor):
             parameters = [parameters]
         parameters = [p for p in parameters if p.grad is not None]

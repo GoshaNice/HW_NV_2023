@@ -44,7 +44,7 @@ class BaseDataset(Dataset):
         audio_wave = self.load_audio(audio_path)
         if self.segment_size is not None and audio_wave.shape[-1] > self.segment_size:
             start = np.random.randint(0, audio_wave.shape[-1] - self.segment_size + 1)
-            audio_wave = audio_wave[:, start:start+self.segment_size]
+            audio_wave = audio_wave[:, start : start + self.segment_size]
         audio_wave, audio_spec = self.process_wave(audio_wave)
         return {
             "audio": audio_wave,
