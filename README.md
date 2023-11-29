@@ -1,4 +1,4 @@
-# NV HW3
+# NV HW4
 #### Implemented by: Pistsov Georgiy 202
 
 You can find report here: [wandb report](https://wandb.ai/goshanice/tts_project/reports/-DLA-NV-Homework--Vmlldzo2MDUxNjU4?accessToken=ll13eq4q0o9hix06hoyhqdiyk34v0uhze860lh7s12yj464rlouzaszgn4z2mm5n)
@@ -18,12 +18,6 @@ Then you run:
 make install
 ```
 
-## Download waveglow:
-
-```shell
-make download_waveglow
-```
-
 ## Download checkpoint:
 
 ```shell
@@ -41,7 +35,7 @@ Config for training you can find in src/config.json
 
 ## Synthesize something:
 
-The phonemes to synthesize should be in "test_data_folder/input.txt"
+The melspectrograms to synthesize should be in "test_data_folder/"
 
 ```shell
 make synthesize
