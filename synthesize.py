@@ -18,6 +18,8 @@ DEFAULT_CHECKPOINT_PATH = ROOT_PATH / "default_test_model" / "model_best.pth"
 def main(config, input_folder, out_folder):
     input_folder = Path(input_folder)
     out_folder = Path(out_folder)
+    
+    out_folder.mkdir(exist_ok=True, parents=True)
 
     logger = config.get_logger("test")
 
@@ -37,15 +39,15 @@ def main(config, input_folder, out_folder):
     # prepare model for testing
     model = model.to(device)
 
-    for file in tqdm(enumerate(input_folder.iterdir())):
+    for i, file in tqdm(enumerate(input_folder.iterdir())):
         melspec = torch.from_numpy(np.load(file)).to(device)
         
         model.eval()
-        output = model()
+        output = model(melspec)
         audio = output["prediction"][0].cpu().detach()
         new_file_name = file.stem + ".wav"
         out_file_name = out_folder/ new_file_name
-        torchaudio.save(out_file_name, audio)
+        torchaudio.save(out_file_name, audio, sample_rate=22050)
 
 
 if __name__ == "__main__":

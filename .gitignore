@@ -114,3 +114,4 @@ __MACOSX/
 
 waveglow/pretrained_model
 *.patch
+*.pth

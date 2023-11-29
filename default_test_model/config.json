@@ -44,7 +44,7 @@
                   "type": "LJspeechDataset",
                   "args": {
                       "part": "train",
-                      "segment_size": 8192
+                      "segment_size": 16384
                   }
               }
           ]
@@ -108,15 +108,14 @@
     }
   },
   "trainer": {
-      "epochs": 3000,
+      "epochs": 50,
       "save_dir": "saved/",
-      "save_period": 500,
+      "save_period": 5,
       "verbosity": 2,
-      "monitor": "min train_loss",
-      "early_stop": 3000,
+      "monitor": "off",
+      "early_stop": 50,
       "visualize": "wandb",
       "wandb_project": "nv_project",
-      "len_epoch": 500,
-      "grad_norm_clip": 100
+      "len_epoch": 500
   }
 }
